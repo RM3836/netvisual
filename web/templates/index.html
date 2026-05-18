@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetVisual - 网络拓扑可视化</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #1a1a2e; color: #eee; }
+        #header {
+            background: linear-gradient(135deg, #16213e, #0f3460);
+            padding: 15px 30px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        #header h1 { font-size: 22px; color: #e94560; }
+        #header .subtitle { color: #aaa; font-size: 13px; }
+        #controls { display: flex; gap: 10px; align-items: center; }
+        button {
+            padding: 8px 18px; border: none; border-radius: 6px;
+            background: #e94560; color: white; cursor: pointer; font-size: 13px;
+        }
+        button:hover { background: #c73e54; }
+        button.secondary { background: #533483; }
+        button.secondary:hover { background: #6a42a0; }
+        #main { display: flex; height: calc(100vh - 60px); }
+        #network { flex: 1; background: #16213e; }
+        #sidebar {
+            width: 320px; background: #1a1a2e; border-left: 1px solid #333;
+            padding: 20px; overflow-y: auto;
+        }
+        #sidebar h3 { color: #e94560; margin-bottom: 10px; }
+        .stat-item { padding: 8px 0; border-bottom: 1px solid #333; }
+        .stat-label { color: #888; font-size: 12px; }
+        .stat-value { font-size: 16px; font-weight: bold; }
+        #node-info { margin-top: 20px; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .info-card {
+            background: #16213e; padding: 10px; border-radius: 6px;
+            border: 1px solid #333;
+        }
+        .info-card .label { font-size: 11px; color: #888; }
+        .info-card .value { font-size: 14px; margin-top: 3px; }
+        #load-section { margin-bottom: 20px; }
+        #load-section input {
+            width: 100%; padding: 8px; background: #16213e;
+            border: 1px solid #333; color: #eee; border-radius: 4px;
+            margin-bottom: 8px;
+        }
+        .legend { margin-top: 20px; }
+        .legend-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+        .legend-dot { width: 14px; height: 14px; border-radius: 50%; }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <div>
+            <h1>🌐 NetVisual</h1>
+            <span class="subtitle">网络拓扑可视化工具</span>
+        </div>
+        <div id="controls">
+            <button onclick="loadExample('campus')">校园网示例</button>
+            <button onclick="loadExample('datacenter')">数据中心示例</button>
+            <button class="secondary" onclick="loadFromServer()">从服务器加载</button>
+        </div>
+    </div>
+    <div id="main">
+        <div id="network"></div>
+        <div id="sidebar">
+            <div id="load-section">
+                <h3>📂 加载拓扑</h3>
+                <input type="text" id="filepath" placeholder="输入JSON文件路径...">
+                <button onclick="loadFile()" style="width:100%">加载文件</button>
+            </div>
+            <h3>📊 统计信息</h3>
+            <div id="stats">
+                <div class="stat-item">
+                    <div class="stat-label">节点数</div>
+                    <div class="stat-value" id="stat-nodes">-</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">链路数</div>
+                    <div class="stat-value" id="stat-edges">-</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">设备类型</div>
+                    <div class="stat-value" id="stat-types">-</div>
+                </div>
+            </div>
+            <div id="node-info">
+                <h3>📋 节点信息</h3>
+                <p style="color:#888; font-size:13px;">点击节点查看详情</p>
+                <div id="node-detail"></div>
+            </div>
+            <div class="legend">
+                <h3>🎨 图例</h3>
+                <div class="legend-item"><div class="legend-dot" style="background:#E74C3C"></div>路由器</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#3498DB"></div>交换机</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#2ECC71"></div>服务器</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#95A5A6"></div>PC终端</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#E67E22"></div>防火墙</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    let network = null;
+    let nodesData = null;
+    let edgesData = null;
+
+    const typeColors = {
+        router: '#E74C3C', switch: '#3498DB', server: '#2ECC71',
+        pc: '#95A5A6', firewall: '#E67E22', unknown: '#BDC3C7'
+    };
+    const typeShapes = {
+        router: 'triangle', switch: 'box', server: 'dot',
+        pc: 'dot', firewall: 'diamond', unknown: 'dot'
+    };
+
+    function renderGraph(data) {
+        const container = document.getElementById('network');
+        nodesData = new vis.DataSet(data.nodes.map(n => ({
+            id: n.id,
+            label: n.label || n.id,
+            color: { background: typeColors[n.type] || '#BDC3C7', border: typeColors[n.type] || '#BDC3C7' },
+            shape: typeShapes[n.type] || 'dot',
+            size: n.type === 'pc' ? 15 : n.type === 'router' ? 30 : 25,
+            font: { color: '#eee', size: 12 },
+            title: `类型: ${n.type || '未知'}\nIP: ${n.ip || 'N/A'}`,
+            raw: n
+        })));
+        edgesData = new vis.DataSet(data.edges.map((e, i) => ({
+            id: i, from: e.source, to: e.target,
+            color: { color: '#555', highlight: '#e94560' },
+            width: 2,
+            label: e.bandwidth || '',
+            font: { color: '#888', size: 10, strokeWidth: 0 }
+        })));
+
+        const options = {
+            physics: { solver: 'forceAtlas2Based', stabilization: { iterations: 100 } },
+            interaction: { hover: true, tooltipDelay: 200 },
+            edges: { smooth: { type: 'continuous' } }
+        };
+        network = new vis.Network(container, { nodes: nodesData, edges: edgesData }, options);
+
+        network.on('click', function(params) {
+            if (params.nodes.length > 0) {
+                const nodeId = params.nodes[0];
+                const node = nodesData.get(nodeId);
+                showNodeInfo(node.raw);
+            }
+        });
+
+        // 更新统计
+        const types = {};
+        data.nodes.forEach(n => { types[n.type] = (types[n.type] || 0) + 1; });
+        document.getElementById('stat-nodes').textContent = data.nodes.length;
+        document.getElementById('stat-edges').textContent = data.edges.length;
+        document.getElementById('stat-types').textContent = Object.entries(types).map(([k,v]) => `${k}(${v})`).join(', ');
+    }
+
+    function showNodeInfo(node) {
+        document.getElementById('node-detail').innerHTML = `
+            <div class="info-grid">
+                <div class="info-card"><div class="label">ID</div><div class="value">${node.id}</div></div>
+                <div class="info-card"><div class="label">类型</div><div class="value">${node.type || '未知'}</div></div>
+                <div class="info-card"><div class="label">IP</div><div class="value">${node.ip || 'N/A'}</div></div>
+                <div class="info-card"><div class="label">标签</div><div class="value">${node.label || node.id}</div></div>
+            </div>`;
+    }
+
+    function loadExample(name) {
+        const examples = {
+            campus: {nodes:[
+                {id:"core-1",label:"核心路由器-1",type:"router",ip:"10.0.0.1"},
+                {id:"core-2",label:"核心路由器-2",type:"router",ip:"10.0.0.2"},
+                {id:"fw-1",label:"出口防火墙",type:"firewall",ip:"10.0.0.254"},
+                {id:"dist-1",label:"汇聚交换机-教学楼",type:"switch",ip:"10.1.0.1"},
+                {id:"dist-2",label:"汇聚交换机-图书馆",type:"switch",ip:"10.2.0.1"},
+                {id:"dist-3",label:"汇聚交换机-宿舍区",type:"switch",ip:"10.3.0.1"},
+                {id:"acc-1",label:"接入交换机-1F",type:"switch",ip:"10.1.1.1"},
+                {id:"acc-2",label:"接入交换机-2F",type:"switch",ip:"10.1.2.1"},
+                {id:"acc-3",label:"接入交换机-图书馆",type:"switch",ip:"10.2.1.1"},
+                {id:"srv-web",label:"Web服务器",type:"server",ip:"10.0.10.1"},
+                {id:"srv-db",label:"数据库服务器",type:"server",ip:"10.0.10.2"},
+                {id:"srv-dns",label:"DNS服务器",type:"server",ip:"10.0.10.3"},
+                {id:"pc-1",label:"教师PC-1",type:"pc",ip:"10.1.1.100"},
+                {id:"pc-2",label:"学生PC-1",type:"pc",ip:"10.1.1.101"},
+                {id:"pc-3",label:"图书馆终端",type:"pc",ip:"10.2.1.50"},
+                {id:"pc-4",label:"宿舍PC-1",type:"pc",ip:"10.3.1.100"}
+            ],edges:[
+                {source:"fw-1",target:"core-1",bandwidth:"10Gbps"},
+                {source:"core-1",target:"core-2",bandwidth:"10Gbps"},
+                {source:"core-1",target:"dist-1",bandwidth:"1Gbps"},
+                {source:"core-1",target:"dist-2",bandwidth:"1Gbps"},
+                {source:"core-2",target:"dist-3",bandwidth:"1Gbps"},
+                {source:"core-1",target:"srv-web",bandwidth:"1Gbps"},
+                {source:"core-1",target:"srv-db",bandwidth:"1Gbps"},
+                {source:"core-2",target:"srv-dns",bandwidth:"1Gbps"},
+                {source:"dist-1",target:"acc-1",bandwidth:"1Gbps"},
+                {source:"dist-1",target:"acc-2",bandwidth:"1Gbps"},
+                {source:"dist-2",target:"acc-3",bandwidth:"1Gbps"},
+                {source:"acc-1",target:"pc-1",bandwidth:"100Mbps"},
+                {source:"acc-1",target:"pc-2",bandwidth:"100Mbps"},
+                {source:"acc-3",target:"pc-3",bandwidth:"100Mbps"},
+                {source:"dist-3",target:"pc-4",bandwidth:"100Mbps"}
+            ]},
+            datacenter: {nodes:[
+                {id:"fw-ext",label:"外部防火墙",type:"firewall",ip:"203.0.113.1"},
+                {id:"fw-int",label:"内部防火墙",type:"firewall",ip:"10.0.0.1"},
+                {id:"spine-1",label:"Spine交换机-1",type:"switch",ip:"10.0.1.1"},
+                {id:"spine-2",label:"Spine交换机-2",type:"switch",ip:"10.0.1.2"},
+                {id:"leaf-1",label:"Leaf交换机-1",type:"switch",ip:"10.0.2.1"},
+                {id:"leaf-2",label:"Leaf交换机-2",type:"switch",ip:"10.0.2.2"},
+                {id:"leaf-3",label:"Leaf交换机-3",type:"switch",ip:"10.0.2.3"},
+                {id:"lb",label:"负载均衡器",type:"server",ip:"10.0.3.1"},
+                {id:"web-1",label:"Web服务器-1",type:"server",ip:"10.0.10.1"},
+                {id:"web-2",label:"Web服务器-2",type:"server",ip:"10.0.10.2"},
+                {id:"app-1",label:"应用服务器-1",type:"server",ip:"10.0.20.1"},
+                {id:"app-2",label:"应用服务器-2",type:"server",ip:"10.0.20.2"},
+                {id:"db-master",label:"数据库主节点",type:"server",ip:"10.0.30.1"},
+                {id:"db-slave",label:"数据库从节点",type:"server",ip:"10.0.30.2"},
+                {id:"storage",label:"存储服务器",type:"server",ip:"10.0.40.1"}
+            ],edges:[
+                {source:"fw-ext",target:"fw-int",bandwidth:"10Gbps"},
+                {source:"fw-int",target:"spine-1",bandwidth:"10Gbps"},
+                {source:"fw-int",target:"spine-2",bandwidth:"10Gbps"},
+                {source:"spine-1",target:"leaf-1",bandwidth:"10Gbps"},
+                {source:"spine-1",target:"leaf-2",bandwidth:"10Gbps"},
+                {source:"spine-2",target:"leaf-2",bandwidth:"10Gbps"},
+                {source:"spine-2",target:"leaf-3",bandwidth:"10Gbps"},
+                {source:"leaf-1",target:"lb",bandwidth:"10Gbps"},
+                {source:"lb",target:"web-1",bandwidth:"10Gbps"},
+                {source:"lb",target:"web-2",bandwidth:"10Gbps"},
+                {source:"leaf-2",target:"app-1",bandwidth:"10Gbps"},
+                {source:"leaf-2",target:"app-2",bandwidth:"10Gbps"},
+                {source:"leaf-3",target:"db-master",bandwidth:"10Gbps"},
+                {source:"leaf-3",target:"db-slave",bandwidth:"10Gbps"},
+                {source:"db-master",target:"db-slave",bandwidth:"10Gbps"},
+                {source:"leaf-3",target:"storage",bandwidth:"10Gbps"}
+            ]}
+        };
+        if (examples[name]) renderGraph(examples[name]);
+    }
+
+    async function loadFromServer() {
+        try {
+            const resp = await fetch('/api/topology');
+            const data = await resp.json();
+            if (data.nodes && data.nodes.length > 0) renderGraph(data);
+            else alert('服务器无拓扑数据，请先上传或加载文件');
+        } catch(e) { alert('加载失败: ' + e.message); }
+    }
+
+    async function loadFile() {
+        const filepath = document.getElementById('filepath').value;
+        if (!filepath) { alert('请输入文件路径'); return; }
+        try {
+            const resp = await fetch('/api/topology/load', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({filepath})
+            });
+            const result = await resp.json();
+            if (result.error) { alert(result.error); return; }
+            loadFromServer();
+        } catch(e) { alert('加载失败: ' + e.message); }
+    }
+
+    // 默认加载校园网示例
+    window.onload = () => loadExample('campus');
+    </script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+{
+  "nodes": [
+    {"id": "core-1", "label": "核心路由器-1", "type": "router", "ip": "10.0.0.1"},
+    {"id": "core-2", "label": "核心路由器-2", "type": "router", "ip": "10.0.0.2"},
+    {"id": "fw-1", "label": "出口防火墙", "type": "firewall", "ip": "10.0.0.254"},
+    {"id": "dist-1", "label": "汇聚交换机-教学楼", "type": "switch", "ip": "10.1.0.1"},
+    {"id": "dist-2", "label": "汇聚交换机-图书馆", "type": "switch", "ip": "10.2.0.1"},
+    {"id": "dist-3", "label": "汇聚交换机-宿舍区", "type": "switch", "ip": "10.3.0.1"},
+    {"id": "acc-1", "label": "接入交换机-1F", "type": "switch", "ip": "10.1.1.1"},
+    {"id": "acc-2", "label": "接入交换机-2F", "type": "switch", "ip": "10.1.2.1"},
+    {"id": "acc-3", "label": "接入交换机-图书馆", "type": "switch", "ip": "10.2.1.1"},
+    {"id": "srv-web", "label": "Web服务器", "type": "server", "ip": "10.0.10.1"},
+    {"id": "srv-db", "label": "数据库服务器", "type": "server", "ip": "10.0.10.2"},
+    {"id": "srv-dns", "label": "DNS服务器", "type": "server", "ip": "10.0.10.3"},
+    {"id": "pc-1", "label": "教师PC-1", "type": "pc", "ip": "10.1.1.100"},
+    {"id": "pc-2", "label": "学生PC-1", "type": "pc", "ip": "10.1.1.101"},
+    {"id": "pc-3", "label": "图书馆终端", "type": "pc", "ip": "10.2.1.50"},
+    {"id": "pc-4", "label": "宿舍PC-1", "type": "pc", "ip": "10.3.1.100"}
+  ],
+  "edges": [
+    {"source": "fw-1", "target": "core-1", "bandwidth": "10Gbps"},
+    {"source": "core-1", "target": "core-2", "bandwidth": "10Gbps"},
+    {"source": "core-1", "target": "dist-1", "bandwidth": "1Gbps"},
+    {"source": "core-1", "target": "dist-2", "bandwidth": "1Gbps"},
+    {"source": "core-2", "target": "dist-3", "bandwidth": "1Gbps"},
+    {"source": "core-1", "target": "srv-web", "bandwidth": "1Gbps"},
+    {"source": "core-1", "target": "srv-db", "bandwidth": "1Gbps"},
+    {"source": "core-2", "target": "srv-dns", "bandwidth": "1Gbps"},
+    {"source": "dist-1", "target": "acc-1", "bandwidth": "1Gbps"},
+    {"source": "dist-1", "target": "acc-2", "bandwidth": "1Gbps"},
+    {"source": "dist-2", "target": "acc-3", "bandwidth": "1Gbps"},
+    {"source": "acc-1", "target": "pc-1", "bandwidth": "100Mbps"},
+    {"source": "acc-1", "target": "pc-2", "bandwidth": "100Mbps"},
+    {"source": "acc-3", "target": "pc-3", "bandwidth": "100Mbps"},
+    {"source": "dist-3", "target": "pc-4", "bandwidth": "100Mbps"}
+  ]
+}

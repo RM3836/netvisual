@@ -1,0 +1,37 @@
+{
+  "nodes": [
+    {"id": "fw-ext", "label": "外部防火墙", "type": "firewall", "ip": "203.0.113.1"},
+    {"id": "fw-int", "label": "内部防火墙", "type": "firewall", "ip": "10.0.0.1"},
+    {"id": "spine-1", "label": "Spine交换机-1", "type": "switch", "ip": "10.0.1.1"},
+    {"id": "spine-2", "label": "Spine交换机-2", "type": "switch", "ip": "10.0.1.2"},
+    {"id": "leaf-1", "label": "Leaf交换机-1", "type": "switch", "ip": "10.0.2.1"},
+    {"id": "leaf-2", "label": "Leaf交换机-2", "type": "switch", "ip": "10.0.2.2"},
+    {"id": "leaf-3", "label": "Leaf交换机-3", "type": "switch", "ip": "10.0.2.3"},
+    {"id": "lb", "label": "负载均衡器", "type": "server", "ip": "10.0.3.1"},
+    {"id": "web-1", "label": "Web服务器-1", "type": "server", "ip": "10.0.10.1"},
+    {"id": "web-2", "label": "Web服务器-2", "type": "server", "ip": "10.0.10.2"},
+    {"id": "app-1", "label": "应用服务器-1", "type": "server", "ip": "10.0.20.1"},
+    {"id": "app-2", "label": "应用服务器-2", "type": "server", "ip": "10.0.20.2"},
+    {"id": "db-master", "label": "数据库主节点", "type": "server", "ip": "10.0.30.1"},
+    {"id": "db-slave", "label": "数据库从节点", "type": "server", "ip": "10.0.30.2"},
+    {"id": "storage", "label": "存储服务器", "type": "server", "ip": "10.0.40.1"}
+  ],
+  "edges": [
+    {"source": "fw-ext", "target": "fw-int", "bandwidth": "10Gbps"},
+    {"source": "fw-int", "target": "spine-1", "bandwidth": "10Gbps"},
+    {"source": "fw-int", "target": "spine-2", "bandwidth": "10Gbps"},
+    {"source": "spine-1", "target": "leaf-1", "bandwidth": "10Gbps"},
+    {"source": "spine-1", "target": "leaf-2", "bandwidth": "10Gbps"},
+    {"source": "spine-2", "target": "leaf-2", "bandwidth": "10Gbps"},
+    {"source": "spine-2", "target": "leaf-3", "bandwidth": "10Gbps"},
+    {"source": "leaf-1", "target": "lb", "bandwidth": "10Gbps"},
+    {"source": "lb", "target": "web-1", "bandwidth": "10Gbps"},
+    {"source": "lb", "target": "web-2", "bandwidth": "10Gbps"},
+    {"source": "leaf-2", "target": "app-1", "bandwidth": "10Gbps"},
+    {"source": "leaf-2", "target": "app-2", "bandwidth": "10Gbps"},
+    {"source": "leaf-3", "target": "db-master", "bandwidth": "10Gbps"},
+    {"source": "leaf-3", "target": "db-slave", "bandwidth": "10Gbps"},
+    {"source": "db-master", "target": "db-slave", "bandwidth": "10Gbps"},
+    {"source": "leaf-3", "target": "storage", "bandwidth": "10Gbps"}
+  ]
+}
